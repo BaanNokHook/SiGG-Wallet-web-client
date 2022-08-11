@@ -1,113 +1,55 @@
-import React, { Component } from "react";
-import { Modal } from "react-bootstrap";
-import JSONPretty from "react-json-pretty";
-import "./CredentialModal.css";
-import { VID } from "../CredentialTypes/VID/VID";
-import { Diploma } from "../CredentialTypes/Diploma/Diploma";
-import { VP } from "../CredentialTypes/VP/VP";
-import * as transform from "../../utils/StringTransformation";
-import { IAttribute } from "../../dtos/attributes";
+import React from "react";
+import { BrowserRouter } from "react-router-dom";
+import { render, fireEvent, act } from "@testing-library/react";
 
-type CallbackFunction = () => void;
+import CredentialModal from "./CredentialModal";
+import * as mocks from "../../test/mocks/mocks";
 
-type Props = {
-  credential: IAttribute;
-  isModalCredentialOpen: boolean;
-  methodToClose: CallbackFunction;
-};
-
-type State = {
-  isFullCredentialDisplayed: boolean;
-  name: string;
-};
-
-class CredentialModal extends Component<Props, State> {
-  constructor(props: Readonly<Props>) {
-    super(props);
-
-    this.state = {
-      isFullCredentialDisplayed: false,
-      name: "",
-    };
-  }
-
-  openDetails = async (): Promise<void> => {
-    const { credential } = this.props;
-    const name = await transform.modifyName(
-      credential.name,
-      "credential",
-      credential.did
+describe("credential modal", () => {
+  it("should render without crashing", () => {
+    expect.assertions(1);
+    const credential = mocks.getVID;
+    const methodToOpen = jest.fn();
+    const wrapper = render(
+      <BrowserRouter>
+        <CredentialModal
+          credential={credential}
+          methodToClose={methodToOpen}
+          isModalCredentialOpen
+        />
+      </BrowserRouter>
     );
-    this.setState({
-      isFullCredentialDisplayed: true,
-      name,
-    });
-  };
+    expect(wrapper).toBeDefined();
+    jest.restoreAllMocks();
+  });
 
-  closeDetails = (): void => {
-    const { isFullCredentialDisplayed } = this.state;
-    if (isFullCredentialDisplayed) {
-      this.setState({
-        isFullCredentialDisplayed: false,
-        name: "",
-      });
-    }
-  };
-
-  render(): JSX.Element {
-    const { methodToClose, credential, isModalCredentialOpen } = this.props;
-    const { isFullCredentialDisplayed, name } = this.state;
-    return (
-      <Modal show={isModalCredentialOpen} onHide={methodToClose} size="lg">
-        <Modal.Header className="ModalHeader" closeButton>
-          <Modal.Title className="ModalTitleCredential">{name}</Modal.Title>
-        </Modal.Header>
-        <Modal.Body>
-          {!isFullCredentialDisplayed && isModalCredentialOpen && (
-            <>
-              {credential.name === "Verifiable ID" && (
-                <VID data={credential.dataDecoded || ""} />
-              )}
-              {credential.name === "VerifiablePresentation" && <VP />}
-              {(credential.name === '["Europass Diploma"]' ||
-                credential.name === "Europass Diploma") && (
-                <Diploma data={credential.dataDecoded || ""} />
-              )}
-            </>
-          )}
-          {isFullCredentialDisplayed && (
-            <JSONPretty id="json-pretty-store" data={credential.dataDecoded} />
-          )}
-        </Modal.Body>
-        <Modal.Footer>
-          <button
-            className="ecl-button ecl-button--ghost"
-            type="button"
-            onClick={methodToClose}
-          >
-            Close
-          </button>
-          {!isFullCredentialDisplayed ? (
-            <button
-              className="ecl-button ecl-button--primary"
-              type="button"
-              onClick={this.openDetails}
-            >
-              Open Details
-            </button>
-          ) : (
-            <button
-              className="ecl-button ecl-button--primary"
-              type="button"
-              onClick={this.closeDetails}
-            >
-              Close Details
-            </button>
-          )}
-        </Modal.Footer>
-      </Modal>
+  it("should open and close the details", async () => {
+    expect.assertions(4);
+    const credential = mocks.getVID;
+    const methodToOpen = jest.fn();
+    const { getByRole, getByText } = render(
+      <CredentialModal
+        credential={credential}
+        methodToClose={methodToOpen}
+        isModalCredentialOpen
+      />
     );
-  }
-}
 
-export default CredentialModal;
+    // Click on "Open details"
+    const openDtailsButton = getByRole("button", { name: "Open Details" });
+    fireEvent.click(openDtailsButton);
+    await act(() => Promise.resolve());
+    // Details has "My Verifiable eID" as title and shows JSON-like text
+    expect(getByText("My Verifiable eID")).toBeDefined();
+    expect(getByText("personIdentifier")).toBeDefined();
+
+    // Click on "Close details"
+    const closeDtailsButton = getByRole("button", { name: "Close Details" });
+    fireEvent.click(closeDtailsButton);
+    await act(() => Promise.resolve());
+    expect(() => getByText("My Verifiable eID")).toThrow();
+    expect(getByText("Person Identifier")).toBeDefined();
+
+    jest.restoreAllMocks();
+  });
+});
